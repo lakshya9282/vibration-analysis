@@ -319,3 +319,9 @@ summary_df = pd.DataFrame({
 }).T
 
 print(summary_df.round(4))
+
+import joblib
+
+model.save("model.h5")
+joblib.dump(scaler, "scaler.pkl")
+joblib.dump(label_encoder, "label_encoder.pkl")
