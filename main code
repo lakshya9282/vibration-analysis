@@ -47,12 +47,12 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 # 1. DATA LOADING
 # ==========================================
 files = {
-    'Full Load Faulty': '/content/Full Load Faulty Bearing (1).csv',
-    'Full Load Normal': '/content/Full Load Normal Bearing.csv',
-    'Half Load Faulty': '/content/Half Load Faulty Bearing.csv',
-    'Half Load Normal': '/content/Half Load Normal Bearing (1).csv',
-    'No Load Faulty': '/content/No Load Faulty Bearing (1).csv',
-    'No Load Normal': '/content/No Load Normal Bearing (1).csv'
+    'Full Load Faulty': '"C:\Users\heheh\Downloads\Full Load Faulty Bearing (1).csv"',
+    'Full Load Normal': '"C:\Users\heheh\Downloads\Full Load Normal Bearing.csv"',
+    'Half Load Faulty': '"C:\Users\heheh\Downloads\Half Load Faulty Bearing.csv"',
+    'Half Load Normal': '"C:\Users\heheh\Downloads\Half Load Normal Bearing (1).csv"',
+    'No Load Faulty': '"C:\Users\heheh\Downloads\No Load Faulty Bearing (1).csv"',
+    'No Load Normal': '"C:\Users\heheh\Downloads\No Load Normal Bearing (1).csv"'
 }
 
 all_dfs = []
@@ -320,8 +320,12 @@ summary_df = pd.DataFrame({
 
 print(summary_df.round(4))
 
-import joblib
-
-model.save("model.h5")
-joblib.dump(scaler, "scaler.pkl")
-joblib.dump(label_encoder, "label_encoder.pkl")
+import jobio
+# Save the DL model
+model.save("vibration_model.h5")
+# Save the Label Encoder and Scaler
+import pickle
+with open('scaler.pkl', 'wb') as f:
+    pickle.dump(scaler, f)
+with open('label_encoder.pkl', 'wb') as f:
+    pickle.dump(label_encoder, f)
