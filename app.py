@@ -1,91 +1,78 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-import joblib
+import numpy as np
 import tensorflow as tf
+import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ==========================
-# LOAD MODEL + OBJECTS
-# ==========================
-model = tf.keras.models.load_model("model.h5")
-scaler = joblib.load("scaler.pkl")
-label_encoder = joblib.load("label_encoder.pkl")
+# Page Config
+st.set_page_config(page_title="Vibration Diagnostics Dashboard", layout="wide")
 
-# ==========================
-# PAGE CONFIG
-# ==========================
-st.set_page_config(page_title="Bearing Fault Detection", layout="wide")
+@st.cache_resource
+def load_assets():
+    model = tf.keras.models.load_model("vibration_model.h5")
+    with open('scaler.pkl', 'rb') as f:
+        scaler = pickle.load(f)
+    with open('label_encoder.pkl', 'rb') as f:
+        le = pickle.load(f)
+    return model, scaler, le
 
-st.title("🔧 Bearing Fault Detection Dashboard")
+model, scaler, le = load_assets()
 
-# ==========================
-# FILE UPLOAD
-# ==========================
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+st.title("⚙️ Predictive Maintenance: Vibration Analysis")
+st.markdown("Upload a CSV file containing vibration data (`acx`, `acy`, `acz`) to diagnose bearing health.")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    df.columns = [c.lower().strip() for c in df.columns]
+# Sidebar for Upload
+st.sidebar.header("Data Input")
+uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
-    st.subheader(" Raw Data")
-    st.write(df.head())
+if uploaded_file is not None:
+    data = pd.read_csv(uploaded_file)
+    data.columns = [c.lower().strip() for c in data.columns]
+    
+    if all(col in data.columns for col in ['acx', 'acy', 'acz']):
+        # Display Raw Data
+        with st.expander("View Uploaded Data"):
+            st.write(data.head())
 
-    # ==========================
-    # VISUALIZATION
-    # ==========================
-    st.subheader(" Signal Visualization")
+        # Preprocessing for prediction (Take the first window of 100 samples)
+        if len(data) >= 100:
+            input_data = data[['acx', 'acy', 'acz']].iloc[:100].values
+            input_scaled = scaler.transform(input_data)
+            input_reshaped = input_scaled.reshape(1, 100, 3)
 
-    fig, ax = plt.subplots(3, 1, figsize=(10, 6))
-    for i, col in enumerate(['acx', 'acy', 'acz']):
-        ax[i].plot(df[col])
-        ax[i].set_title(col)
-    st.pyplot(fig)
+            # Prediction
+            prediction = model.predict(input_reshaped)
+            pred_class = np.argmax(prediction)
+            confidence = np.max(prediction) * 100
+            label = le.inverse_transform([pred_class])[0]
 
-    # ==========================
-    # PREPROCESS
-    # ==========================
-    features = scaler.transform(df[['acx', 'acy', 'acz']])
+            # Dashboard Metrics
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Detected Condition", label)
+            with col2:
+                st.metric("Confidence Score", f"{confidence:.2f}%")
 
-    def segment_signal(data, window_size=100, step_size=20):
-        segments = []
-        for i in range(0, len(data) - window_size + 1, step_size):
-            segments.append(data[i:i + window_size])
-        return np.array(segments)
+            # Status Indicator
+            if "Faulty" in label:
+                st.error(f" Warning: Maintenance Required! Condition: {label}")
+            else:
+                st.success(f" System Normal: {label}")
 
-    X = segment_signal(features)
-
-    # ==========================
-    # PREDICTION
-    # ==========================
-    preds = model.predict(X)
-    pred_classes = np.argmax(preds, axis=1)
-
-    decoded_preds = label_encoder.inverse_transform(pred_classes)
-
-    st.subheader(" Predictions")
-
-    pred_df = pd.DataFrame(decoded_preds, columns=["Predicted Label"])
-    st.write(pred_df.value_counts())
-
-    # ==========================
-    # DISTRIBUTION PLOT
-    # ==========================
-    st.subheader(" Prediction Distribution")
-
-    fig2, ax2 = plt.subplots()
-    sns.countplot(x=decoded_preds, ax=ax2)
-    plt.xticks(rotation=45)
-    st.pyplot(fig2)
-
-    # ==========================
-    # CONFIDENCE
-    # ==========================
-    st.subheader(" Prediction Confidence")
-
-    confidence = np.max(preds, axis=1)
-    st.write(pd.DataFrame(confidence, columns=["Confidence"]).describe())
-
+            # Visualization
+            st.subheader("Vibration Signature (First 100 Samples)")
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(input_data[:, 0], label="AcX", color="blue", alpha=0.7)
+            ax.plot(input_data[:, 1], label="AcY", color="green", alpha=0.7)
+            ax.plot(input_data[:, 2], label="AcZ", color="red", alpha=0.7)
+            ax.legend()
+            st.pyplot(fig)
+            
+        else:
+            st.warning("CSV must have at least 100 rows for analysis.")
+    else:
+        st.error("CSV must contain columns: acx, acy, acz")
 else:
-    st.info("Please upload a CSV file to begin.")
+    st.info("Awaiting CSV upload...")
